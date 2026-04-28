@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Can Studio — Label Prototyper</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥫</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap"
+    onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet"></noscript>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    :root {
+      --bg:           #F8F6F4;
+      --ink:          #111111;
+      --accent:       #C0AEDA;   /* dusty purple-beige */
+      --accent-mid:   #9878C0;   /* richer purple */
+      --accent-pale:  #EDE8F6;   /* near-white purple */
+      --border:       #111111;
+      --muted:        #888888;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: var(--ink);
+    }
+
+    canvas {
+      display: block;
+      position: fixed; inset: 0; z-index: 1;
+    }
+
+    /* ── Brand — top left ── */
+    #brand {
+      position: fixed;
+      top: clamp(22px, 3vh, 38px);
+      left: clamp(24px, 3vw, 48px);
+      z-index: 10;
+      line-height: 1;
+    }
+    #brand-name {
+      font-size: clamp(20px, 2.4vw, 32px);
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    #brand-sub {
+      font-size: clamp(8px, 0.75vw, 10px);
+      font-weight: 500;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    /* ── Drag hint ── */
+    #hint {
+      position: fixed;
+      top: clamp(24px, 3.5vh, 44px);
+      left: 50%; transform: translateX(-50%);
+      z-index: 10;
+      font-size: clamp(8px, 0.72vw, 10px);
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--muted);
+      pointer-events: none;
+      transition: opacity 1.5s;
+      white-space: nowrap;
+    }
+    #hint.hide { opacity: 0; }
+
+    /* ── Upload panel — right side ── */
+    #upload-panel {
+      position: fixed;
+      right: clamp(16px, 2.4vw, 40px);
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+      width: clamp(210px, 22vw, 272px);
+      background: #ffffff;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Panel header bar */
+    #panel-header {
+      background: var(--ink);
+      color: #ffffff;
+      padding: 10px 16px;
+      font-size: clamp(8px, 0.72vw, 10px);
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    /* Panel body */
+    #panel-body {
+      padding: clamp(14px, 1.8vh, 20px) clamp(14px, 1.6vw, 18px);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(12px, 1.6vh, 18px);
+    }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 2px dashed var(--accent-mid);
+      background: var(--accent-pale);
+      border-radius: 4px;
+      padding: clamp(18px, 2.8vh, 32px) 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+      text-align: center;
+      position: relative;
+    }
+    #drop-zone:hover {
+      background: #E4DCF0;
+      border-color: var(--accent-mid);
+      transform: scale(1.01);
+    }
+    #drop-zone.drag-over {
+      background: #D8CCE8;
+      border-color: var(--ink);
+      border-style: solid;
+    }
+    #drop-icon {
+      font-size: clamp(26px, 3vw, 36px);
+      line-height: 1;
+    }
+    #drop-title {
+      font-size: clamp(11px, 1vw, 14px);
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: 0.2px;
+    }
+    #drop-sub {
+      font-size: clamp(9px, 0.78vw, 11px);
+      font-weight: 400;
+      color: var(--muted);
+    }
+    #file-input { display: none; }
+
+    /* Loaded state */
+    #current-image {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      align-items: stretch;
+    }
+    #thumb-wrap {
+      width: 100%;
+      aspect-ratio: 2.4;
+      border: 2px solid var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    #thumb {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    #change-btn {
+      font-family: inherit;
+      font-size: clamp(8px, 0.72vw, 10px);
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--ink);
+      background: transparent;
+      border: 2px solid var(--border);
+      border-radius: 2px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      width: 100%;
+    }
+    #change-btn:hover {
+      background: var(--ink);
+      color: #ffffff;
+    }
+
+    /* ── Divider ── */
+    .panel-divider {
+      height: 1px;
+      background: #E0DCE8;
+    }
+
+    /* ── Size note ── */
+    #size-note {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .note-header {
+      font-size: clamp(7px, 0.65vw, 9px);
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .note-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .note-label {
+      font-size: clamp(8px, 0.7vw, 10px);
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .note-val {
+      font-size: clamp(9px, 0.8vw, 11px);
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .note-tip {
+      font-size: clamp(8px, 0.68vw, 9.5px);
+      color: var(--muted);
+      line-height: 1.55;
+      padding-top: 2px;
+    }
+
+    /* ── Accent bar — bottom of panel ── */
+    #panel-accent-bar {
+      height: 5px;
+      background: var(--accent);
+    }
+
+    /* ── Full-window drop overlay ── */
+    #drag-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(248, 246, 244, 0.88);
+      border: 4px solid var(--ink);
+      margin: 16px;
+      border-radius: 4px;
+      pointer-events: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+    }
+    #drag-overlay.active { display: flex; }
+    #drag-overlay-icon {
+      font-size: 48px;
+    }
+    #drag-overlay-text {
+      font-size: clamp(14px, 1.8vw, 22px);
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    #drag-overlay-sub {
+      font-size: clamp(9px, 0.8vw, 11px);
+      font-weight: 500;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* ── Loader ── */
+    #loader {
+      position: fixed; inset: 0; z-index: 200;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      transition: opacity 0.7s;
+    }
+    #loader.done { opacity: 0; pointer-events: none; }
+    #loader-word {
+      font-size: clamp(10px, 1vw, 13px);
+      font-weight: 700;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+    #loader-bar-wrap {
+      width: 180px; height: 3px;
+      background: #E0DCE8;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    #loader-bar {
+      height: 100%; width: 0%;
+      background: var(--accent-mid);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    #loader-bar-wrap::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 20%, rgba(255,255,255,0.7) 50%, transparent 80%);
+      animation: shimmer 1.4s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(300%); }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="canvas"></canvas>
+
+  <div id="loader">
+    <div id="loader-word">Loading</div>
+    <div id="loader-bar-wrap"><div id="loader-bar"></div></div>
+  </div>
+
+  <!-- Brand -->
+  <div id="brand">
+    <div id="brand-name">Can Studio</div>
+    <div id="brand-sub">Label Prototyper</div>
+  </div>
+
+  <!-- Rotation hint -->
+  <div id="hint">Drag to rotate &nbsp;·&nbsp; Scroll to zoom</div>
+
+  <!-- Upload panel -->
+  <div id="upload-panel">
+    <div id="panel-header">Your Label</div>
+    <div id="panel-body">
+
+      <!-- Drop zone -->
+      <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div id="drop-icon">🖼</div>
+        <div id="drop-title">Drop image here</div>
+        <div id="drop-sub">or click to browse · Ctrl+V to paste</div>
+        <input type="file" id="file-input" accept="image/*" />
+      </div>
+
+      <!-- Loaded state -->
+      <div id="current-image">
+        <div id="thumb-wrap"><img id="thumb" alt="Your label" /></div>
+        <button id="change-btn" onclick="resetToUpload()">↩ Change Image</button>
+      </div>
+
+      <div class="panel-divider"></div>
+
+      <!-- Size note -->
+      <div id="size-note">
+        <div class="note-header">Recommended size</div>
+        <div class="note-row">
+          <span class="note-label">Ideal</span>
+          <span class="note-val">2325 × 964 px</span>
+        </div>
+        <div class="note-row">
+          <span class="note-label">Minimum</span>
+          <span class="note-val">1165 × 482 px</span>
+        </div>
+        <div class="note-row">
+          <span class="note-label">Ratio</span>
+          <span class="note-val">2.4 : 1 &nbsp;(w : h)</span>
+        </div>
+        <div class="note-tip">
+          The image wraps 360° around the can body. PNG with a transparent background gives the cleanest result. Other ratios work but may stretch.
+        </div>
+      </div>
+
+    </div>
+    <div id="panel-accent-bar"></div>
+  </div>
+
+  <!-- Full-window drop overlay -->
+  <div id="drag-overlay">
+    <div id="drag-overlay-icon">🎨</div>
+    <div id="drag-overlay-text">Drop to wrap onto can</div>
+    <div id="drag-overlay-sub">PNG · JPG · WEBP</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    /* ─────────────────────────────────────────────────────
+       RENDERER
+    ───────────────────────────────────────────────────── */
+    const canvas   = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setClearColor(0xF8F6F4, 1);
+    renderer.shadowMap.enabled   = true;
+    renderer.shadowMap.type      = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace    = THREE.SRGBColorSpace;
+    renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+
+    /* ─────────────────────────────────────────────────────
+       SCENE + CAMERA
+    ───────────────────────────────────────────────────── */
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 80);
+    camera.position.set(0, 0.4, 7.5);
+
+    /* ─────────────────────────────────────────────────────
+       ORBIT CONTROLS (zoom only, can always rotates via drag)
+    ───────────────────────────────────────────────────── */
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.enableZoom    = true;
+    controls.minDistance   = 3.5;
+    controls.maxDistance   = 14;
+    controls.enablePan     = false;
+    controls.enableRotate  = false; // can always rotated by drag, not orbit
+
+    /* ─────────────────────────────────────────────────────
+       CAN DRAG + INERTIA
+    ───────────────────────────────────────────────────── */
+    let isDragging = false, lastPX = 0, lastPY = 0;
+    let velX = 0, velY = 0;
+    let userInteracted = false;
+    let canGroup = null;
+
+    const DRAG_SCALE = 0.007;
+    const DAMPING    = 0.88;
+    const AUTO_SPIN  = 0.004;
+    const MAX_TILT   = Math.PI / 4;
+
+    const IDLE_DELAY    = 5000;
+    let   idleTimer     = null;
+    let   windUpPhase   = 'off';
+    let   windUpStart   = 0;
+    let   idleSpinSpeed = 0;
+    const WINDBACK_DUR  = 420;
+    const SPINUP_DUR    = 280;
+    const EASEDOWN_DUR  = 1100;
+    const PEAK_SPEED    = AUTO_SPIN * 12;
+
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      windUpPhase = 'off'; idleSpinSpeed = 0;
+      idleTimer = setTimeout(() => {
+        velX = velY = 0;
+        windUpPhase = 'windback';
+        windUpStart = performance.now();
+      }, IDLE_DELAY);
+    }
+
+    function tickIdleSpin() {
+      if (!canGroup || isDragging) return;
+      const now = performance.now();
+      if (windUpPhase === 'windback') {
+        const t = Math.min((now - windUpStart) / WINDBACK_DUR, 1);
+        canGroup.rotation.y += Math.sin(t * Math.PI) * -0.004;
+        if (t >= 1) { windUpPhase = 'spinup'; windUpStart = now; idleSpinSpeed = 0; }
+      } else if (windUpPhase === 'spinup') {
+        const t = Math.min((now - windUpStart) / SPINUP_DUR, 1);
+        idleSpinSpeed = PEAK_SPEED * (t * t);
+        canGroup.rotation.y += idleSpinSpeed;
+        if (t >= 1) { windUpPhase = 'easedown'; windUpStart = now; idleSpinSpeed = PEAK_SPEED; }
+      } else if (windUpPhase === 'easedown') {
+        const t = Math.min((now - windUpStart) / EASEDOWN_DUR, 1);
+        idleSpinSpeed = PEAK_SPEED + (AUTO_SPIN - PEAK_SPEED) * (1 - Math.pow(1 - t, 3));
+        canGroup.rotation.y += idleSpinSpeed;
+        if (t >= 1) { windUpPhase = 'spinning'; idleSpinSpeed = AUTO_SPIN; }
+      } else if (windUpPhase === 'spinning') {
+        canGroup.rotation.y += AUTO_SPIN;
+      }
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+      // Don't steal clicks that are meant for the UI panel
+      if (e.target !== canvas) return;
+      isDragging = true;
+      lastPX = e.clientX; lastPY = e.clientY;
+      velX = velY = 0;
+      windUpPhase = 'off';
+      resetIdleTimer();
+      if (!userInteracted) {
+        userInteracted = true;
+        document.getElementById('hint').classList.add('hide');
+      }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging || !canGroup) return;
+      velX = (e.clientX - lastPX) * DRAG_SCALE;
+      velY = (e.clientY - lastPY) * DRAG_SCALE;
+      lastPX = e.clientX; lastPY = e.clientY;
+      canGroup.rotation.y += velX;
+      canGroup.rotation.x = Math.max(-MAX_TILT, Math.min(MAX_TILT, canGroup.rotation.x + velY));
+    });
+
+    window.addEventListener('pointerup',     () => { isDragging = false; resetIdleTimer(); });
+    window.addEventListener('pointercancel', () => { isDragging = false; resetIdleTimer(); });
+
+    canvas.addEventListener('wheel', (e) => {
+      camera.position.z = Math.max(3.5, Math.min(14, camera.position.z + e.deltaY * 0.01));
+    }, { passive: true });
+
+    /* ─────────────────────────────────────────────────────
+       LIGHTS — neutral/warm for white background
+    ───────────────────────────────────────────────────── */
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.0);
+    keyLight.position.set(4, 6, 5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -5;
+    keyLight.shadow.camera.right = keyLight.shadow.camera.top = 5;
+    keyLight.shadow.camera.near = 0.5; keyLight.shadow.camera.far = 30;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xe8e4f0, 1.2); fillLight.position.set(-4, 3, 3); scene.add(fillLight);
+    const rimLight  = new THREE.DirectionalLight(0xffffff, 1.4); rimLight.position.set(0, -3, -5);  scene.add(rimLight);
+    const topLight  = new THREE.PointLight(0xffffff, 1.2, 20);   topLight.position.set(0, 8, 2);    scene.add(topLight);
+    const sideLight = new THREE.DirectionalLight(0xd8d0e8, 0.8); sideLight.position.set(-6, 1, 2);  scene.add(sideLight);
+
+    /* ─────────────────────────────────────────────────────
+       GLB LOAD
+    ───────────────────────────────────────────────────── */
+    let labelMats = [];
+
+    const gltfLoader = new GLTFLoader();
+    const loadGuard  = setTimeout(() => dismissLoader(), 20000);
+
+    function dismissLoader() {
+      clearTimeout(loadGuard);
+      const el = document.getElementById('loader');
+      if (!el || el.classList.contains('done')) return;
+      el.classList.add('done');
+      setTimeout(() => el.remove(), 900);
+    }
+
+    function setLoaderProgress(pct) {
+      const bar = document.getElementById('loader-bar');
+      if (bar) bar.style.width = pct + '%';
+    }
+
+    const GLB_APPROX_BYTES = 2.2 * 1024 * 1024;
+
+    gltfLoader.load(
+      'aluminium_can-_350ml.glb',
+      gltf => {
+        setLoaderProgress(100);
+        setTimeout(dismissLoader, 300);
+        initScene(gltf);
+      },
+      (xhr) => {
+        const pct = xhr.total
+          ? Math.round(xhr.loaded / xhr.total * 90)
+          : Math.min(85, Math.round(xhr.loaded / GLB_APPROX_BYTES * 85));
+        setLoaderProgress(pct);
+      },
+      err => {
+        console.error('GLB load failed:', err);
+        const w = document.getElementById('loader-word');
+        if (w) w.textContent = 'Load error — check console';
+      }
+    );
+
+    /* ─────────────────────────────────────────────────────
+       SCENE INIT
+    ───────────────────────────────────────────────────── */
+    function initScene(gltf) {
+      canGroup = new THREE.Group();
+      const model = gltf.scene;
+
+      const box  = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      model.scale.setScalar(3.5 / size.y);
+
+      box.setFromObject(model);
+      model.position.sub(box.getCenter(new THREE.Vector3()));
+
+      labelMats = [];
+
+      model.traverse(obj => {
+        if (!obj.isMesh) return;
+        obj.castShadow = obj.receiveShadow = true;
+        if (obj.name !== 'Object_4') return;
+
+        const geo    = obj.geometry;
+        const pos    = geo.attributes.position;
+        const idxBuf = geo.index;
+        const vCount = pos.count;
+
+        const radii = new Float32Array(vCount);
+        let maxR = 0;
+        for (let i = 0; i < vCount; i++) {
+          const r = Math.sqrt(pos.getX(i) ** 2 + pos.getZ(i) ** 2);
+          radii[i] = r; if (r > maxR) maxR = r;
+        }
+        const threshold = maxR * 0.97;
+
+        let labelMinY = Infinity, labelMaxY = -Infinity;
+        for (let i = 0; i < vCount; i++) {
+          if (radii[i] >= threshold) {
+            const y = pos.getY(i);
+            if (y < labelMinY) labelMinY = y;
+            if (y > labelMaxY) labelMaxY = y;
+          }
+        }
+        const labelH = labelMaxY - labelMinY || 1;
+
+        const uvs = new Float32Array(vCount * 2);
+        for (let i = 0; i < vCount; i++) {
+          uvs[i*2]   = 1 - (Math.atan2(pos.getZ(i), pos.getX(i)) / (Math.PI*2) + 0.5);
+          uvs[i*2+1] = 1 - (pos.getY(i) - labelMinY) / labelH;
+        }
+
+        const expandPos = Array.from(geo.getAttribute('position').array);
+        const norAttr   = geo.getAttribute('normal');
+        const expandNor = norAttr ? Array.from(norAttr.array) : null;
+        const expandUV  = Array.from(uvs);
+        const seamDupe  = new Map();
+
+        function dupeForSeam(idx) {
+          if (seamDupe.has(idx)) return seamDupe.get(idx);
+          const ni = expandPos.length / 3;
+          expandPos.push(expandPos[idx*3], expandPos[idx*3+1], expandPos[idx*3+2]);
+          if (expandNor) expandNor.push(expandNor[idx*3], expandNor[idx*3+1], expandNor[idx*3+2]);
+          expandUV.push(expandUV[idx*2] + 1.0, expandUV[idx*2+1]);
+          seamDupe.set(idx, ni); return ni;
+        }
+
+        const labelIdx = [], metalIdx = [];
+        if (idxBuf) {
+          for (let i = 0; i < idxBuf.count; i += 3) {
+            const a = idxBuf.getX(i), b = idxBuf.getX(i+1), c = idxBuf.getX(i+2);
+            if ((radii[a]+radii[b]+radii[c])/3 >= threshold) {
+              const ua = expandUV[a*2], ub = expandUV[b*2], uc = expandUV[c*2];
+              if (Math.max(ua,ub,uc) - Math.min(ua,ub,uc) > 0.5) {
+                labelIdx.push(ua<0.5?dupeForSeam(a):a, ub<0.5?dupeForSeam(b):b, uc<0.5?dupeForSeam(c):c);
+              } else { labelIdx.push(a,b,c); }
+            } else { metalIdx.push(a,b,c); }
+          }
+        }
+
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(expandPos), 3));
+        if (expandNor) geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(expandNor), 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(expandUV), 2));
+
+        const combined = new Uint32Array(labelIdx.length + metalIdx.length);
+        combined.set(labelIdx, 0);
+        combined.set(metalIdx, labelIdx.length);
+        geo.setIndex(new THREE.BufferAttribute(combined, 1));
+        geo.clearGroups();
+        geo.addGroup(0,               labelIdx.length, 0);
+        geo.addGroup(labelIdx.length, metalIdx.length, 1);
+
+        const originalMat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+        const lMat = new THREE.MeshStandardMaterial({ color: 0xf2f0ee, metalness: 0.05, roughness: 0.50 });
+        obj.material = [lMat, originalMat];
+        labelMats.push(lMat);
+      });
+
+      canGroup.add(model);
+      scene.add(canGroup);
+      renderer.setAnimationLoop(renderLoop);
+      resetIdleTimer();
+    }
+
+    /* ─────────────────────────────────────────────────────
+       RENDER LOOP
+    ───────────────────────────────────────────────────── */
+    function renderLoop() {
+      controls.update();
+      if (canGroup && !isDragging) {
+        if (!userInteracted) {
+          canGroup.rotation.y += AUTO_SPIN;
+        } else {
+          if (windUpPhase === 'off') {
+            velX *= DAMPING; velY *= DAMPING;
+            canGroup.rotation.y += velX;
+            canGroup.rotation.x = Math.max(-MAX_TILT, Math.min(MAX_TILT, canGroup.rotation.x + velY));
+          }
+          tickIdleSpin();
+        }
+      }
+      renderer.render(scene, camera);
+    }
+
+    /* ─────────────────────────────────────────────────────
+       IMAGE APPLY
+    ───────────────────────────────────────────────────── */
+    const texLoader = new THREE.TextureLoader();
+
+    function applyImageUrl(dataUrl) {
+      texLoader.load(dataUrl, tex => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.flipY      = false;
+        for (const mat of labelMats) {
+          mat.map   = tex;
+          mat.color.set(0xffffff);
+          mat.needsUpdate = true;
+        }
+      });
+      document.getElementById('thumb').src = dataUrl;
+      document.getElementById('drop-zone').style.display     = 'none';
+      document.getElementById('current-image').style.display = 'flex';
+    }
+
+    window.resetToUpload = function() {
+      for (const mat of labelMats) {
+        mat.map = null;
+        mat.color.set(0xf2f0ee);
+        mat.needsUpdate = true;
+      }
+      document.getElementById('drop-zone').style.display     = '';
+      document.getElementById('current-image').style.display = 'none';
+    };
+
+    /* ─────────────────────────────────────────────────────
+       FILE / DROP / PASTE HANDLERS
+    ───────────────────────────────────────────────────── */
+    document.getElementById('file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => applyImageUrl(ev.target.result);
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    });
+
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover',  (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file?.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => applyImageUrl(ev.target.result); r.readAsDataURL(file); }
+    });
+
+    let dragDepth = 0;
+    const overlay = document.getElementById('drag-overlay');
+    window.addEventListener('dragenter', (e) => {
+      if (e.dataTransfer.types.includes('Files')) { dragDepth++; overlay.classList.add('active'); }
+    });
+    window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; overlay.classList.remove('active'); } });
+    window.addEventListener('dragover',  (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault(); dragDepth = 0; overlay.classList.remove('active');
+      const file = e.dataTransfer.files[0];
+      if (file?.type.startsWith('image/')) { const r = new FileReader(); r.onload = ev => applyImageUrl(ev.target.result); r.readAsDataURL(file); }
+    });
+
+    window.addEventListener('paste', (e) => {
+      for (const item of e.clipboardData?.items ?? []) {
+        if (item.type.startsWith('image/')) {
+          const r = new FileReader(); r.onload = ev => applyImageUrl(ev.target.result); r.readAsDataURL(item.getAsFile()); break;
+        }
+      }
+    });
+
+    /* ─────────────────────────────────────────────────────
+       RESIZE
+    ───────────────────────────────────────────────────── */
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+  </script>
+</body>
+</html>
