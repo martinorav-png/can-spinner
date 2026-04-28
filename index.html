@@ -44,6 +44,7 @@
     canvas {
       display: block;
       position: fixed; inset: 0; z-index: 1;
+      touch-action: none;
     }
 
     /* ── Brand — top left ── */
@@ -273,6 +274,85 @@
       color: var(--muted);
     }
 
+    /* ── Panel toggle button (mobile only) ── */
+    #panel-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.75);
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 6px;
+      margin-left: auto;
+      flex-shrink: 0;
+      transition: transform 0.25s;
+    }
+
+    /* ── Mobile layout ── */
+    @media (max-width: 640px) {
+      /* Brand: shrink so it doesn't cover the can */
+      #brand img {
+        height: clamp(36px, 9vw, 52px);
+      }
+
+      /* Hint: smaller text, keeps it readable but unobtrusive */
+      #hint {
+        font-size: clamp(7px, 2.4vw, 9px);
+        letter-spacing: 2px;
+        top: clamp(10px, 1.6vh, 18px);
+      }
+
+      /* Upload panel: slide to a bottom sheet */
+      #upload-panel {
+        right: 0;
+        left: 0;
+        top: auto;
+        bottom: 0;
+        transform: none;
+        width: 100%;
+        border-radius: 14px 14px 0 0;
+        border-left: 2px solid var(--border);
+        border-right: 2px solid var(--border);
+        border-bottom: none;
+      }
+
+      /* Header becomes a tap target with a drag-handle pill */
+      #panel-header {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        padding-top: 18px;
+        position: relative;
+      }
+      #panel-header::before {
+        content: '';
+        position: absolute;
+        top: 7px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 32px;
+        height: 3px;
+        background: rgba(255,255,255,0.35);
+        border-radius: 2px;
+      }
+
+      #panel-toggle {
+        display: block;
+      }
+
+      /* Collapsed: hide body + accent bar */
+      #upload-panel.mobile-collapsed #panel-body,
+      #upload-panel.mobile-collapsed #panel-accent-bar {
+        display: none;
+      }
+
+      /* Arrow flips when collapsed */
+      #upload-panel.mobile-collapsed #panel-toggle {
+        transform: rotate(180deg);
+      }
+    }
+
     /* ── Loader ── */
     #loader {
       position: fixed; inset: 0; z-index: 200;
@@ -332,11 +412,11 @@
   </div>
 
   <!-- Rotation hint -->
-  <div id="hint">Drag to rotate &nbsp;·&nbsp; Scroll to zoom</div>
+  <div id="hint">Drag to rotate &nbsp;·&nbsp; Scroll / Pinch to zoom</div>
 
   <!-- Upload panel -->
   <div id="upload-panel">
-    <div id="panel-header">Your Label</div>
+    <div id="panel-header">Your Label <button id="panel-toggle" aria-label="Toggle panel">▲</button></div>
     <div id="panel-body">
 
       <!-- Drop zone -->
@@ -431,6 +511,7 @@
     let velX = 0, velY = 0;
     let userInteracted = false;
     let canGroup = null;
+    let activePointerId = null;
 
     const DRAG_SCALE = 0.007;
     const DAMPING    = 0.88;
@@ -482,6 +563,9 @@
     canvas.addEventListener('pointerdown', (e) => {
       // Don't steal clicks that are meant for the UI panel
       if (e.target !== canvas) return;
+      // Only track the first touch; let OrbitControls handle multi-touch pinch
+      if (activePointerId !== null) return;
+      activePointerId = e.pointerId;
       isDragging = true;
       lastPX = e.clientX; lastPY = e.clientY;
       velX = velY = 0;
@@ -494,7 +578,7 @@
     });
 
     window.addEventListener('pointermove', (e) => {
-      if (!isDragging || !canGroup) return;
+      if (!isDragging || !canGroup || e.pointerId !== activePointerId) return;
       velX = (e.clientX - lastPX) * DRAG_SCALE;
       velY = (e.clientY - lastPY) * DRAG_SCALE;
       lastPX = e.clientX; lastPY = e.clientY;
@@ -502,8 +586,12 @@
       canGroup.rotation.x = Math.max(-MAX_TILT, Math.min(MAX_TILT, canGroup.rotation.x + velY));
     });
 
-    window.addEventListener('pointerup',     () => { isDragging = false; resetIdleTimer(); });
-    window.addEventListener('pointercancel', () => { isDragging = false; resetIdleTimer(); });
+    window.addEventListener('pointerup', (e) => {
+      if (e.pointerId === activePointerId) { isDragging = false; activePointerId = null; resetIdleTimer(); }
+    });
+    window.addEventListener('pointercancel', (e) => {
+      if (e.pointerId === activePointerId) { isDragging = false; activePointerId = null; resetIdleTimer(); }
+    });
 
     canvas.addEventListener('wheel', (e) => {
       camera.position.z = Math.max(3.5, Math.min(14, camera.position.z + e.deltaY * 0.01));
@@ -771,7 +859,33 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      applyMobileLayout();
     });
+
+    /* ─────────────────────────────────────────────────────
+       MOBILE BOTTOM-SHEET TOGGLE
+    ───────────────────────────────────────────────────── */
+    const uploadPanel = document.getElementById('upload-panel');
+    const panelHeader = document.getElementById('panel-header');
+
+    function applyMobileLayout() {
+      if (window.innerWidth <= 640) {
+        if (!uploadPanel.dataset.mobileInit) {
+          uploadPanel.classList.add('mobile-collapsed');
+          uploadPanel.dataset.mobileInit = '1';
+        }
+      } else {
+        uploadPanel.classList.remove('mobile-collapsed');
+        delete uploadPanel.dataset.mobileInit;
+      }
+    }
+
+    panelHeader.addEventListener('click', () => {
+      if (window.innerWidth > 640) return;
+      uploadPanel.classList.toggle('mobile-collapsed');
+    });
+
+    applyMobileLayout();
 
   </script>
 </body>
