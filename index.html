@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Can Studio — Label Prototyper</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥫</text></svg>" />
+  <title>can prototyper</title>
+  <link rel="icon" href="bepisdog.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preload" as="style"
@@ -49,25 +49,15 @@
     /* ── Brand — top left ── */
     #brand {
       position: fixed;
-      top: clamp(22px, 3vh, 38px);
-      left: clamp(24px, 3vw, 48px);
+      top: clamp(18px, 2.5vh, 32px);
+      left: clamp(20px, 2.5vw, 40px);
       z-index: 10;
-      line-height: 1;
     }
-    #brand-name {
-      font-size: clamp(20px, 2.4vw, 32px);
-      font-weight: 900;
-      letter-spacing: -0.5px;
-      text-transform: uppercase;
-      color: var(--ink);
-    }
-    #brand-sub {
-      font-size: clamp(8px, 0.75vw, 10px);
-      font-weight: 500;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-top: 3px;
+    #brand img {
+      height: clamp(36px, 5vh, 56px);
+      width: auto;
+      display: block;
+      border-radius: 4px;
     }
 
     /* ── Drag hint ── */
@@ -338,8 +328,7 @@
 
   <!-- Brand -->
   <div id="brand">
-    <div id="brand-name">Can Studio</div>
-    <div id="brand-sub">Label Prototyper</div>
+    <img src="bepisdog.jpg" alt="bepisdog" />
   </div>
 
   <!-- Rotation hint -->
